@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#8B1E24">
+  <meta name="robots" content="noindex, nofollow">
+  <title>TDSV Attendee Check-in</title>
+  <meta name="description" content="Secure attendee scan-and-verify check-in for The Dance &amp; Super Voice Competition.">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="app-header">
+    <div class="brand">
+      <img class="brand__logo" src="redbox-mark.png" alt="Redbox official logo" width="48" height="48">
+      <div class="brand__text">
+        <h1 class="brand__title">TDSV Attendee Check-in</h1>
+        <p class="brand__sub" id="eventLine">The Dance &amp; Super Voice Competition</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <span class="pill pill--ok" id="netStatus" role="status">Online</span>
+      <span class="header-meta__gate" id="gateLabel" title="Current gate / operator"></span>
+      <time class="header-meta__clock" id="clock" aria-label="Current time, Lagos">--:--:--</time>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Main sections">
+    <a class="tab" href="#scan" data-tab="scan">Scan</a>
+    <a class="tab" href="#attendees" data-tab="attendees">Attendees</a>
+    <a class="tab" href="#activity" data-tab="activity">Activity log</a>
+    <a class="tab" href="#settings" data-tab="settings">Settings &amp; data</a>
+  </nav>
+
+  <section id="sampleBanner" class="banner banner--sample" aria-label="Sample data notice" hidden>
+    <strong>Sample data loaded.</strong>
+    <span>These are fictional records from the demo register. Import the verified attendee register in <a href="#settings">Settings &amp; data</a> before operational use.</span>
+  </section>
+  <div id="storageBanner" class="banner banner--warn" role="alert" hidden>
+    <strong>Browser storage is unavailable.</strong>
+    <span>Check-ins will be lost if this page is closed or reloaded. Export the check-in report regularly.</span>
+  </div>
+
+  <main id="main" tabindex="-1">
+
+    <!-- ============ SCAN ============ -->
+    <section id="view-scan" class="view" data-view="scan" aria-labelledby="h-scan" hidden>
+      <h2 id="h-scan" class="sr-only" tabindex="-1">Scan and verify</h2>
+      <div class="scan-grid">
+        <div class="scan-col">
+          <article class="card camera-card">
+            <header class="card__head">
+              <h3 class="card__title">Camera scanner</h3>
+              <span id="cameraState" class="chip">Camera off</span>
+            </header>
+            <div class="camera" id="camera">
+              <video id="video" playsinline muted></video>
+              <canvas id="frame" hidden></canvas>
+              <div class="camera__reticle" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+              <div class="camera__msg" id="cameraMsg">
+                <p>Camera is off.</p>
+                <p class="camera__hint">Start the camera to scan a QR pass, or type / scan a code below.</p>
+              </div>
+            </div>
+            <div class="camera__controls">
+              <button type="button" id="btnCamera" class="btn btn--primary">Start camera</button>
+              <label class="sr-only" for="cameraSelect">Choose camera</label>
+              <select id="cameraSelect" class="select" hidden></select>
+              <button type="button" id="btnTorch" class="btn" aria-pressed="false" hidden>Torch off</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <header class="card__head">
+              <h3 class="card__title">Manual / hardware scanner entry</h3>
+            </header>
+            <form id="manualForm" class="manual" autocomplete="off" novalidate>
+              <label for="codeInput" class="label">Pass code or Attendee ID</label>
+              <div class="manual__row">
+                <input id="codeInput" class="input input--code" type="text" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="120" placeholder="e.g. VV-00001 or TDSV-0001" aria-describedby="codeHelp">
+                <button type="submit" class="btn btn--primary">Verify</button>
+              </div>
+              <p id="codeHelp" class="help">USB and Bluetooth barcode scanners work here automatically: keep this field focused and scan. No pass? Search by name in <a href="#attendees">Attendees</a>.</p>
+            </form>
+          </article>
+        </div>
+
+        <div class="scan-col">
+          <article class="card result-card" aria-labelledby="h-result">
+            <header class="card__head">
+              <h3 id="h-result" class="card__title">Verification result</h3>
+            </header>
+            <div id="result" class="result" aria-live="off"></div>
+          </article>
+
+          <article class="card stats-card" aria-labelledby="h-stats">
+            <header class="card__head">
+              <h3 id="h-stats" class="card__title">Live attendance</h3>
+            </header>
+            <div class="stats">
+              <div class="stats__totals">
+                <div class="stat"><span class="stat__num" id="statIn">0</span><span class="stat__label">Checked in</span></div>
+                <div class="stat"><span class="stat__num" id="statLeft">0</span><span class="stat__label">Remaining</span></div>
+                <div class="stat"><span class="stat__num" id="statTotal">0</span><span class="stat__label">Registered</span></div>
+              </div>
+              <label class="sr-only" for="statBar">Overall check-in progress</label>
+              <progress id="statBar" class="bar" max="100" value="0">0%</progress>
+              <p class="help" id="statPct"></p>
+              <table class="table table--compact" id="statTable">
+                <caption class="sr-only">Check-in progress by access category</caption>
+                <thead><tr><th scope="col">Category</th><th scope="col" class="num">In</th><th scope="col" class="num">Total</th><th scope="col" class="num">Left</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ATTENDEES ============ -->
+    <section id="view-attendees" class="view" data-view="attendees" aria-labelledby="h-attendees" hidden>
+      <div class="view__head">
+        <h2 id="h-attendees" class="view__title" tabindex="-1">Attendees</h2>
+        <p class="help" id="attCount" role="status"></p>
+      </div>
+      <div class="toolbar">
+        <div class="field field--grow">
+          <label for="attSearch" class="label">Search</label>
+          <input id="attSearch" class="input" type="search" placeholder="Name, ID, pass code, organisation…" autocomplete="off" maxlength="80">
+        </div>
+        <div class="field">
+          <label for="attCat" class="label">Access category</label>
+          <select id="attCat" class="select"><option value="">All</option></select>
+        </div>
+        <div class="field">
+          <label for="attStatus" class="label">Check-in</label>
+          <select id="attStatus" class="select">
+            <option value="">All</option>
+            <option value="in">Checked in</option>
+            <option value="out">Not checked in</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="attRsvp" class="label">RSVP</label>
+          <select id="attRsvp" class="select"><option value="">All</option></select>
+        </div>
+        <div class="field field--btn">
+          <button type="button" id="btnPrintList" class="btn">Print passes (filtered)</button>
+        </div>
+      </div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Attendee table, scrollable">
+        <table class="table" id="attTable">
+          <caption class="sr-only">Attendee register</caption>
+          <thead>
+            <tr>
+              <th scope="col" aria-sort="none"><button type="button" class="sort" data-sort="id">ID</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="sort" data-sort="name">Full name</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="sort" data-sort="category">Category</button></th>
+              <th scope="col">Role</th>
+              <th scope="col">Organisation</th>
+              <th scope="col" aria-sort="none"><button type="button" class="sort" data-sort="rsvp">RSVP</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="sort" data-sort="time">Check-in</button></th>
+              <th scope="col">Seat / section</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button type="button" id="pagePrev" class="btn">Previous</button>
+        <span id="pageInfo" class="help" role="status"></span>
+        <button type="button" id="pageNext" class="btn">Next</button>
+      </div>
+    </section>
+
+    <!-- ============ ACTIVITY ============ -->
+    <section id="view-activity" class="view" data-view="activity" aria-labelledby="h-activity" hidden>
+      <div class="view__head">
+        <h2 id="h-activity" class="view__title" tabindex="-1">Activity log</h2>
+        <p class="help" id="logCount" role="status"></p>
+      </div>
+      <div class="toolbar">
+        <div class="field field--grow">
+          <label for="logSearch" class="label">Search</label>
+          <input id="logSearch" class="input" type="search" placeholder="Name, ID or scanned value…" autocomplete="off" maxlength="80">
+        </div>
+        <div class="field">
+          <label for="logType" class="label">Outcome</label>
+          <select id="logType" class="select"><option value="">All</option></select>
+        </div>
+        <div class="field field--btn">
+          <button type="button" id="btnExportLog" class="btn">Export log (CSV)</button>
+        </div>
+      </div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Activity log table, scrollable">
+        <table class="table" id="logTable">
+          <caption class="sr-only">Scan and check-in activity, newest first</caption>
+          <thead>
+            <tr>
+              <th scope="col">Time (WAT)</th>
+              <th scope="col">Outcome</th>
+              <th scope="col">Attendee</th>
+              <th scope="col">Category</th>
+              <th scope="col">Scanned value</th>
+              <th scope="col">Gate / operator</th>
+              <th scope="col">Method</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section id="view-settings" class="view" data-view="settings" aria-labelledby="h-settings" hidden>
+      <div class="view__head">
+        <h2 id="h-settings" class="view__title" tabindex="-1">Settings &amp; data</h2>
+      </div>
+      <div class="settings-grid">
+        <article class="card">
+          <header class="card__head"><h3 class="card__title">Gate &amp; scanning</h3></header>
+          <div class="form">
+            <div class="field">
+              <label for="setOperator" class="label">Gate / operator name</label>
+              <input id="setOperator" class="input" type="text" maxlength="40" autocomplete="off">
+              <p class="help">Recorded against every check-in and log entry.</p>
+            </div>
+            <label class="check"><input type="checkbox" id="setAuto"> <span><strong>Admit automatically</strong> when a confirmed attendee is verified. Turn off to require a tap on “Admit”.</span></label>
+            <label class="check"><input type="checkbox" id="setSound"> <span><strong>Sound</strong> feedback on scan.</span></label>
+            <label class="check"><input type="checkbox" id="setVibrate"> <span><strong>Vibration</strong> feedback (supported phones).</span></label>
+          </div>
+        </article>
+
+        <article class="card">
+          <header class="card__head"><h3 class="card__title">Attendee register</h3></header>
+          <div class="form">
+            <p class="help" id="sourceInfo"></p>
+            <div class="field">
+              <label for="fileImport" class="label">Import verified register (.xlsx, .xls or .csv)</label>
+              <input id="fileImport" class="input input--file" type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv">
+              <p class="help">Required columns: <em>Attendee ID</em>, <em>Full Name</em>, <em>Ticket / Pass Code</em>. Optional: Access Category, Attendee Type / Role, Organisation / Affiliation, Email, Phone, RSVP Status, Check-in Status, Check-in Time, Seat / Section, Notes. IDs and pass codes must be unique.</p>
+            </div>
+            <p id="importMsg" class="msg" role="status" hidden></p>
+            <div class="btn-row">
+              <button type="button" id="btnRestoreSample" class="btn">Restore sample register</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <header class="card__head"><h3 class="card__title">Reports &amp; backup</h3></header>
+          <div class="form">
+            <p class="help">Check-ins are stored in this browser only. Export regularly as a backup, and at the end of the event.</p>
+            <div class="btn-row">
+              <button type="button" id="btnExportCsv" class="btn btn--primary">Check-in report (CSV)</button>
+              <button type="button" id="btnExportXlsx" class="btn">Updated register (XLSX)</button>
+              <button type="button" id="btnExportLog2" class="btn">Activity log (CSV)</button>
+            </div>
+            <p class="help">The CSV report excludes email, phone and pass codes (data minimisation). The XLSX mirrors the original register columns, with check-in status and time updated.</p>
+          </div>
+        </article>
+
+        <article class="card card--danger">
+          <header class="card__head"><h3 class="card__title">Reset</h3></header>
+          <div class="form">
+            <p class="help">Clears every check-in on this device (for example after a rehearsal). The activity log is kept for audit and records the reset.</p>
+            <div class="btn-row">
+              <button type="button" id="btnReset" class="btn btn--danger">Reset all check-ins…</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="card card--wide">
+          <header class="card__head"><h3 class="card__title">Privacy &amp; operating notes</h3></header>
+          <ul class="notes">
+            <li>All data stays on this device. Nothing is sent to any server; there are no analytics or third-party requests.</li>
+            <li>Only the attendee details needed for entry are shown on the scan result. Contact details appear only in the attendee detail view.</li>
+            <li>Restrict access to the device and exported files, and delete them after the retention period agreed for the event (Nigeria Data Protection Act 2023).</li>
+            <li>This browser app keeps its own record of check-ins. Gates on different devices do not sync with each other. Use one device per entrance list, or reconcile exports after the event.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span id="footVenue">AGIP Hall, MUSON Centre, Lagos</span>
+    <span aria-hidden="true">·</span>
+    <span>All times in West Africa Time (WAT, UTC+01:00)</span>
+  </footer>
+
+  <!-- Screen-reader announcements -->
+  <div id="announcePolite" class="sr-only" role="status" aria-live="polite"></div>
+  <div id="announceAssertive" class="sr-only" role="alert" aria-live="assertive"></div>
+
+  <!-- Attendee detail dialog -->
+  <dialog id="detailDialog" class="dialog" aria-labelledby="detailTitle">
+    <form method="dialog" class="dialog__form">
+      <header class="dialog__head">
+        <h2 id="detailTitle" class="dialog__title">Attendee</h2>
+        <button type="submit" class="btn btn--icon" aria-label="Close dialog">✕</button>
+      </header>
+      <div id="detailBody" class="dialog__body"></div>
+    </form>
+  </dialog>
+
+  <!-- Confirmation dialog -->
+  <dialog id="confirmDialog" class="dialog dialog--small" aria-labelledby="confirmTitle" aria-describedby="confirmMsg">
+    <form method="dialog" class="dialog__form">
+      <header class="dialog__head">
+        <h2 id="confirmTitle" class="dialog__title">Confirm</h2>
+      </header>
+      <div class="dialog__body"><p id="confirmMsg"></p></div>
+      <footer class="dialog__foot">
+        <button type="submit" value="cancel" class="btn" autofocus>Cancel</button>
+        <button type="submit" value="ok" id="confirmOk" class="btn btn--primary">Confirm</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Printable passes (hidden on screen) -->
+  <div id="printArea" aria-hidden="true"></div>
+
+  <script src="jsQR.js"></script>
+  <script src="qrcode.js"></script>
+  <script src="xlsx.mini.min.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
